@@ -1,0 +1,492 @@
+{
+  "components": {
+    "x-1295779-treemap-chart-uic": {
+      "innerComponents": [],
+      "uiBuilder": {
+        "associatedTypes": [
+          "global.core",
+          "global.landing-page"
+        ],
+        "label": "D3 Treemap",
+        "tileIcon": "./tile-icon/generic-tile-icon.svg",
+        "description": "A configurable treemap rendered with D3.js. Nested rectangles whose AREA encodes value, for hierarchical or flat (optionally grouped) data. Configurable tiling, color-by-group/value/depth, nested-group headers, auto-contrast labels, and click/hover events.",
+        "category": "primitives"
+      },
+      "properties": [
+        {
+          "name": "data",
+          "label": "Data · Treemap data",
+          "description": "Either a HIERARCHY object { name, children: [ { name, children: [ { name, value } ] } ] } (leaves carry value; internal nodes sum their descendants; leaves may carry an optional color), OR a FLAT array [ { label, value, group?, color? } ] (when a group field is present a 2-level tree group->leaf is built; otherwise a single level of tiles). Auto-detected: an array is treated as flat; an object with children is treated as a hierarchy. Bind to a data resource or leave empty to show built-in sample data.",
+          "fieldType": "json"
+        },
+        {
+          "name": "chartTitle",
+          "label": "Header & border · Title",
+          "description": "Title rendered above the chart. Leave blank to hide.",
+          "fieldType": "string",
+          "defaultValue": "Spend by Category"
+        },
+        {
+          "name": "titleFontSize",
+          "label": "Header & border · Title font size",
+          "description": "Font size of the chart title, in pixels.",
+          "fieldType": "number",
+          "defaultValue": 18
+        },
+        {
+          "name": "titleColor",
+          "label": "Header & border · Title color",
+          "description": "Text color of the chart title.",
+          "fieldType": "string",
+          "defaultValue": "#374151"
+        },
+        {
+          "name": "componentWidth",
+          "label": "Header & border · Width",
+          "description": "Outer width of the whole widget. CSS length, e.g. \"50%\", \"640px\". A bare number is treated as pixels.",
+          "fieldType": "string",
+          "defaultValue": "50%"
+        },
+        {
+          "name": "componentPadding",
+          "label": "Header & border · Padding",
+          "description": "Padding around the whole widget. CSS length, e.g. \"12px\", \"1rem\". A bare number is treated as pixels.",
+          "fieldType": "string",
+          "defaultValue": "12px"
+        },
+        {
+          "name": "backgroundColor",
+          "label": "Header & border · Background color",
+          "description": "Chart background. CSS color or \"transparent\".",
+          "fieldType": "string",
+          "defaultValue": "transparent"
+        },
+        {
+          "name": "borderColor",
+          "label": "Header & border · Border color",
+          "description": "Border color of the widget. Leave blank for no border.",
+          "fieldType": "string",
+          "defaultValue": ""
+        },
+        {
+          "name": "borderWidth",
+          "label": "Header & border · Border width",
+          "description": "Border thickness in pixels. 0 = no border.",
+          "fieldType": "number",
+          "defaultValue": 0
+        },
+        {
+          "name": "borderRadius",
+          "label": "Header & border · Border radius",
+          "description": "Rounded corners of the widget, in pixels.",
+          "fieldType": "number",
+          "defaultValue": 0
+        },
+        {
+          "name": "chartHeight",
+          "label": "Display · Chart height (px)",
+          "description": "Height of the chart in pixels.",
+          "fieldType": "number",
+          "defaultValue": 360
+        },
+        {
+          "name": "animate",
+          "label": "Display · Animate",
+          "description": "Animate tiles fading/scaling in on first render and on data change.",
+          "fieldType": "boolean",
+          "defaultValue": true
+        },
+        {
+          "name": "animationDuration",
+          "label": "Display · Animation duration (ms)",
+          "description": "Duration of the fade/scale-in animation in milliseconds.",
+          "fieldType": "number",
+          "defaultValue": 800
+        },
+        {
+          "name": "animationEasing",
+          "label": "Display · Animation easing",
+          "description": "Easing curve for the tile-in animation.",
+          "fieldType": "choice",
+          "defaultValue": "cubicOut",
+          "typeMetadata": {
+            "variant": "dropdown",
+            "choices": [
+              { "label": "Linear", "value": "linear" },
+              { "label": "Cubic out", "value": "cubicOut" },
+              { "label": "Cubic in-out", "value": "cubicInOut" },
+              { "label": "Quad out", "value": "quadOut" },
+              { "label": "Exp out", "value": "expOut" },
+              { "label": "Back out", "value": "backOut" },
+              { "label": "Bounce out", "value": "bounceOut" },
+              { "label": "Elastic out", "value": "elasticOut" }
+            ]
+          }
+        },
+        {
+          "name": "fontFamily",
+          "label": "Display · Base font family",
+          "description": "CSS font-family for chart text that doesn't have its own family set. Blank = inherit from the page.",
+          "fieldType": "string",
+          "defaultValue": ""
+        },
+        {
+          "name": "dropShadow",
+          "label": "Display · Drop shadow",
+          "description": "Apply a soft drop shadow to the tiles.",
+          "fieldType": "boolean",
+          "defaultValue": false
+        },
+        {
+          "name": "shadowColor",
+          "label": "Display · Shadow color (when drop shadow on)",
+          "description": "Color of the tile drop shadow (supports rgba).",
+          "fieldType": "string",
+          "defaultValue": "rgba(0,0,0,0.25)"
+        },
+        {
+          "name": "shadowBlur",
+          "label": "Display · Shadow blur (when drop shadow on)",
+          "description": "Blur radius of the drop shadow, in pixels.",
+          "fieldType": "number",
+          "defaultValue": 4
+        },
+        {
+          "name": "hoverHighlight",
+          "label": "Display · Hover highlight",
+          "description": "Emphasize a tile on mouse-over (brighter fill + outline).",
+          "fieldType": "boolean",
+          "defaultValue": true
+        },
+        {
+          "name": "hoverDimOthers",
+          "label": "Display · Dim others on hover",
+          "description": "Fade the other tiles when hovering one, so the hovered tile stands out.",
+          "fieldType": "boolean",
+          "defaultValue": false
+        },
+        {
+          "name": "tileMethod",
+          "label": "Tiles · Tiling method",
+          "description": "How D3 subdivides each rectangle. Squarify aims for square-ish tiles (best general choice); Binary splits to balance the tree; Slice-and-dice alternates horizontal/vertical splits (good for ordered data); Resquarify keeps tiles stable across redraws.",
+          "fieldType": "choice",
+          "defaultValue": "squarify",
+          "typeMetadata": {
+            "variant": "dropdown",
+            "choices": [
+              { "label": "Squarify (square-ish)", "value": "squarify" },
+              { "label": "Binary", "value": "binary" },
+              { "label": "Slice & dice", "value": "sliceDice" },
+              { "label": "Resquarify (stable)", "value": "resquarify" }
+            ]
+          }
+        },
+        {
+          "name": "tilePadding",
+          "label": "Tiles · Inner padding (px)",
+          "description": "Gap between sibling tiles, in pixels.",
+          "fieldType": "number",
+          "defaultValue": 2
+        },
+        {
+          "name": "tilePaddingTop",
+          "label": "Tiles · Group header room (px)",
+          "description": "Extra padding reserved at the top of each parent group to draw its header label. Only meaningful with nested data and group headers on.",
+          "fieldType": "number",
+          "defaultValue": 18
+        },
+        {
+          "name": "tileCornerRadius",
+          "label": "Tiles · Corner radius (px)",
+          "description": "Rounded corners of each tile, in pixels. 0 = square corners.",
+          "fieldType": "number",
+          "defaultValue": 2
+        },
+        {
+          "name": "tileStroke",
+          "label": "Tiles · Stroke color",
+          "description": "Border color drawn around each tile. Leave blank for no stroke.",
+          "fieldType": "string",
+          "defaultValue": "#ffffff"
+        },
+        {
+          "name": "tileStrokeWidth",
+          "label": "Tiles · Stroke width (px)",
+          "description": "Border thickness around each tile, in pixels. 0 = no stroke.",
+          "fieldType": "number",
+          "defaultValue": 1
+        },
+        {
+          "name": "sortTiles",
+          "label": "Tiles · Sort",
+          "description": "Order siblings before tiling. None keeps input order; Value desc puts the largest first (typical); Value asc puts the smallest first.",
+          "fieldType": "choice",
+          "defaultValue": "value-desc",
+          "typeMetadata": {
+            "variant": "dropdown",
+            "choices": [
+              { "label": "None (input order)", "value": "none" },
+              { "label": "Value descending", "value": "value-desc" },
+              { "label": "Value ascending", "value": "value-asc" }
+            ]
+          }
+        },
+        {
+          "name": "maxDepth",
+          "label": "Tiles · Max depth",
+          "description": "Flatten the hierarchy beyond this depth (descendants are merged into their ancestor at this level). 0 = show all levels.",
+          "fieldType": "number",
+          "defaultValue": 0
+        },
+        {
+          "name": "colorMode",
+          "label": "Colors · Color mode",
+          "description": "By group = each top-level group gets a categorical color (leaves inherit, slightly varied). By value = a sequential scale maps each leaf's value to a color. By depth = color by nesting depth. Custom = use each node's own color, falling back to By group.",
+          "fieldType": "choice",
+          "defaultValue": "byGroup",
+          "typeMetadata": {
+            "variant": "dropdown",
+            "choices": [
+              { "label": "By group", "value": "byGroup" },
+              { "label": "By value (sequential)", "value": "byValue" },
+              { "label": "By depth", "value": "byDepth" },
+              { "label": "Custom (node colors)", "value": "custom" }
+            ]
+          }
+        },
+        {
+          "name": "colorScheme",
+          "label": "Colors · Categorical scheme",
+          "description": "Categorical D3 scheme used for By group / By depth coloring, or Custom to use the Color palette below.",
+          "fieldType": "choice",
+          "defaultValue": "custom",
+          "typeMetadata": {
+            "variant": "dropdown",
+            "choices": [
+              { "label": "Custom (use palette)", "value": "custom" },
+              { "label": "Category10", "value": "category10" },
+              { "label": "Tableau10", "value": "tableau10" },
+              { "label": "Set2", "value": "set2" },
+              { "label": "Set3", "value": "set3" },
+              { "label": "Paired", "value": "paired" },
+              { "label": "Dark2", "value": "dark2" },
+              { "label": "Pastel1", "value": "pastel1" },
+              { "label": "Accent", "value": "accent" }
+            ]
+          }
+        },
+        {
+          "name": "colorPalette",
+          "label": "Colors · Color palette",
+          "description": "JSON array of CSS colors used per group/depth when the Categorical scheme is Custom, e.g. [\"#2E93fA\",\"#66DA26\"].",
+          "fieldType": "json"
+        },
+        {
+          "name": "valueColorScheme",
+          "label": "Colors · Sequential scheme (By value)",
+          "description": "Sequential color scheme used when Color mode is By value. Maps the smallest value to the lightest color and the largest to the darkest.",
+          "fieldType": "choice",
+          "defaultValue": "blues",
+          "typeMetadata": {
+            "variant": "dropdown",
+            "choices": [
+              { "label": "Blues", "value": "blues" },
+              { "label": "Greens", "value": "greens" },
+              { "label": "Oranges", "value": "oranges" },
+              { "label": "Purples", "value": "purples" },
+              { "label": "Reds", "value": "reds" },
+              { "label": "Greys", "value": "greys" },
+              { "label": "Viridis", "value": "viridis" },
+              { "label": "Magma", "value": "magma" },
+              { "label": "Inferno", "value": "inferno" },
+              { "label": "Plasma", "value": "plasma" },
+              { "label": "Cividis", "value": "cividis" },
+              { "label": "Turbo", "value": "turbo" },
+              { "label": "Warm", "value": "warm" },
+              { "label": "Cool", "value": "cool" },
+              { "label": "YlGnBu", "value": "ylGnBu" },
+              { "label": "YlOrRd", "value": "ylOrRd" }
+            ]
+          }
+        },
+        {
+          "name": "useSeriesColors",
+          "label": "Colors · Use node colors",
+          "description": "Use a leaf/node's own 'color' field when present (overrides the chosen color mode for that node). Falls back to the color mode otherwise.",
+          "fieldType": "boolean",
+          "defaultValue": true
+        },
+        {
+          "name": "showGroupHeaders",
+          "label": "Labels · Show group headers",
+          "description": "Draw the parent group names as headers in the reserved top padding of each group. Only meaningful with nested data.",
+          "fieldType": "boolean",
+          "defaultValue": true
+        },
+        {
+          "name": "groupHeaderFontSize",
+          "label": "Labels · Group header font size",
+          "description": "Font size (px) of the parent group header labels.",
+          "fieldType": "number",
+          "defaultValue": 12
+        },
+        {
+          "name": "groupHeaderColor",
+          "label": "Labels · Group header color",
+          "description": "Text color of the parent group header labels.",
+          "fieldType": "string",
+          "defaultValue": "#374151"
+        },
+        {
+          "name": "labelMode",
+          "label": "Labels · Tile label mode",
+          "description": "What to draw inside each leaf tile: None, Name only, Name + value, or Value only.",
+          "fieldType": "choice",
+          "defaultValue": "name+value",
+          "typeMetadata": {
+            "variant": "dropdown",
+            "choices": [
+              { "label": "None", "value": "none" },
+              { "label": "Name", "value": "name" },
+              { "label": "Name + value", "value": "name+value" },
+              { "label": "Value", "value": "value" }
+            ]
+          }
+        },
+        {
+          "name": "labelFormat",
+          "label": "Labels · Value format",
+          "description": "D3 number format specifier for tile/header values (e.g. \".0f\", \",.0f\", \"$,.0f\", \".0%\", \".2s\"). Blank = default.",
+          "fieldType": "string",
+          "defaultValue": ""
+        },
+        {
+          "name": "labelFontSize",
+          "label": "Labels · Tile font size",
+          "description": "Font size (px) for the tile labels.",
+          "fieldType": "number",
+          "defaultValue": 12
+        },
+        {
+          "name": "labelColor",
+          "label": "Labels · Tile text color",
+          "description": "Text color for the tile labels. Leave blank to auto-pick black or white per tile for best contrast against the tile fill.",
+          "fieldType": "string",
+          "defaultValue": ""
+        },
+        {
+          "name": "labelMinTileSize",
+          "label": "Labels · Hide below tile size (px)",
+          "description": "Hide labels on tiles narrower or shorter than this many pixels, to avoid clutter on tiny tiles.",
+          "fieldType": "number",
+          "defaultValue": 34
+        },
+        {
+          "name": "showLegend",
+          "label": "Legend · Show legend",
+          "description": "Show a legend of top-level group names with color swatches.",
+          "fieldType": "boolean",
+          "defaultValue": true
+        },
+        {
+          "name": "legendPosition",
+          "label": "Legend · Position",
+          "description": "Where to place the legend.",
+          "fieldType": "choice",
+          "defaultValue": "bottom",
+          "typeMetadata": {
+            "variant": "dropdown",
+            "choices": [
+              { "label": "Top", "value": "top" },
+              { "label": "Right", "value": "right" },
+              { "label": "Bottom", "value": "bottom" }
+            ]
+          }
+        },
+        {
+          "name": "legendFontSize",
+          "label": "Legend · Font size",
+          "description": "Font size (px) for the legend text.",
+          "fieldType": "number",
+          "defaultValue": 12
+        },
+        {
+          "name": "showTooltip",
+          "label": "Tooltip · Show tooltip",
+          "description": "Show a hover tooltip.",
+          "fieldType": "boolean",
+          "defaultValue": true
+        },
+        {
+          "name": "tooltipTemplate",
+          "label": "Tooltip · Template",
+          "description": "Tooltip content (light HTML allowed). Tokens: {name}, {value}, {formattedValue}, {group}, {path} (ancestors joined by ' / '), {depth}, {percent} (of total), {swatch} (a colored dot matching the tile), {color}, and any custom key on the node. Interpolated values are HTML-escaped.",
+          "fieldType": "string",
+          "defaultValue": "<strong>{name}</strong><br/>{swatch}{formattedValue} ({percent})"
+        },
+        {
+          "name": "tooltipFollowCursor",
+          "label": "Tooltip · Follow cursor",
+          "description": "Tooltip follows the pointer. Turn off to anchor it near the hovered tile. Either way it's clamped within the chart bounds.",
+          "fieldType": "boolean",
+          "defaultValue": true
+        },
+        {
+          "name": "tooltipBackground",
+          "label": "Tooltip · Background color",
+          "description": "Tooltip background (CSS color, supports rgba).",
+          "fieldType": "string",
+          "defaultValue": "rgba(17,24,39,0.92)"
+        },
+        {
+          "name": "tooltipTextColor",
+          "label": "Tooltip · Text color",
+          "description": "Tooltip text color.",
+          "fieldType": "string",
+          "defaultValue": "#ffffff"
+        },
+        {
+          "name": "tooltipFontSize",
+          "label": "Tooltip · Font size",
+          "description": "Tooltip font size, in pixels.",
+          "fieldType": "number",
+          "defaultValue": 12
+        }
+      ],
+      "actions": [
+        {
+          "name": "CHART_CLICKED",
+          "label": "Chart clicked",
+          "description": "Fired when the user clicks anywhere on the chart (not on a specific tile).",
+          "payload": [
+            { "name": "tileCount", "label": "Number of tiles", "description": "How many leaf tiles are currently rendered." }
+          ]
+        },
+        {
+          "name": "TILE_CLICKED",
+          "label": "Tile clicked",
+          "description": "Fired when the user clicks an individual tile. Use to drill into details for that tile.",
+          "payload": [
+            { "name": "name", "label": "Name", "description": "Name/label of the tile." },
+            { "name": "value", "label": "Value", "description": "Numeric value of the tile." },
+            { "name": "path", "label": "Path", "description": "Ancestor names from the root joined by ' / '." },
+            { "name": "group", "label": "Group", "description": "Top-level group name the tile belongs to (blank for ungrouped flat data)." },
+            { "name": "depth", "label": "Depth", "description": "Zero-based nesting depth of the tile." },
+            { "name": "color", "label": "Color", "description": "Resolved fill color of the tile." }
+          ]
+        },
+        {
+          "name": "TILE_HOVERED",
+          "label": "Tile hovered",
+          "description": "Fired when the user hovers a tile. Useful for syncing external tooltips or details panels.",
+          "payload": [
+            { "name": "name", "label": "Name", "description": "Name/label of the tile." },
+            { "name": "value", "label": "Value", "description": "Numeric value of the tile." },
+            { "name": "group", "label": "Group", "description": "Top-level group name the tile belongs to." }
+          ]
+        }
+      ]
+    }
+  },
+  "scopeName": "x_1295779_tree_0"
+}

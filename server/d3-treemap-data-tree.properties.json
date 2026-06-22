@@ -1,0 +1,75 @@
+[
+  {
+    "name": "table",
+    "label": "Table",
+    "description": "Table to query, e.g. 'incident'.",
+    "fieldType": "string",
+    "mandatory": true,
+    "defaultValue": "incident"
+  },
+  {
+    "name": "filter",
+    "label": "Filter (encoded query)",
+    "description": "Optional encoded query to scope the rows, e.g. 'active=true'.",
+    "fieldType": "string",
+    "defaultValue": ""
+  },
+  {
+    "name": "groupField",
+    "label": "Group field (level 1 / parent)",
+    "description": "Field for the top-level parent nodes, e.g. 'priority'.",
+    "fieldType": "string",
+    "mandatory": true,
+    "defaultValue": "priority"
+  },
+  {
+    "name": "categoryField",
+    "label": "Category field (level 2 / leaf)",
+    "description": "Field for the leaf tiles within each parent, e.g. 'assignment_group'.",
+    "fieldType": "string",
+    "mandatory": true,
+    "defaultValue": "assignment_group"
+  },
+  {
+    "name": "metric",
+    "label": "Metric",
+    "description": "Aggregation: count | sum | avg | min | max. Default 'count'.",
+    "fieldType": "string",
+    "defaultValue": "count"
+  },
+  {
+    "name": "valueField",
+    "label": "Value field",
+    "description": "Numeric field to aggregate (required when metric is not 'count').",
+    "fieldType": "string",
+    "defaultValue": ""
+  },
+  {
+    "name": "useDisplayValue",
+    "label": "Use display values for labels",
+    "description": "Group/label by display value (readable) instead of raw value.",
+    "fieldType": "boolean",
+    "defaultValue": true
+  },
+  {
+    "name": "rootName",
+    "label": "Root node name",
+    "description": "Name for the synthetic root node (not drawn). Default 'root'.",
+    "fieldType": "string",
+    "defaultValue": "root"
+  },
+  {
+    "name": "colors",
+    "label": "Colors (JSON)",
+    "description": "Optional per-leaf colors: a JSON array applied by order, or a map keyed by leaf label / group name. Sets each leaf's 'color'.",
+    "fieldType": "string",
+    "defaultValue": ""
+  },
+  {
+    "name": "sort",
+    "label": "Tile sort",
+    "description": "Order leaves within the flat pass: none | label-asc | label-desc | value-asc | value-desc.",
+    "fieldType": "string",
+    "defaultValue": "value-desc"
+  }
+]
