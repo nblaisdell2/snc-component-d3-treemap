@@ -3,7 +3,7 @@
  * Client callable = false)
  * ---------------------------------------------------------------------------
  * Reusable transform that turns platform data into the JSON shape expected by
- * the x-1295779-treemap-chart-uic component's "Data · Treemap data" property.
+ * the x-2114311-treemap-chart-uic component's "Data · Treemap data" property.
  *
  * The treemap accepts TWO shapes (auto-detected by the component):
  *

@@ -43,6 +43,9 @@ esbuild.buildSync({
   outfile, nodePaths: [join(DEPS, 'node_modules')], logLevel: 'warning'
 });
 
+// Container width used by the jsdom mock below (see getBoundingClientRect override).
+const CONTAINER_W = 640;
+
 const dom = new JSDOM('<!DOCTYPE html><body><div id="c"></div></body>', { pretendToBeVisual: true });
 global.window = dom.window;
 global.document = dom.window.document;
@@ -52,8 +55,8 @@ global.cancelAnimationFrame = (id) => clearTimeout(id);
 global.performance = global.performance || { now: () => Date.now() };
 global.ResizeObserver = class { observe() {} disconnect() {} };
 const container = document.getElementById('c');
-container.getBoundingClientRect = () => ({ width: 640, height: 360, left: 0, top: 0, right: 640, bottom: 360 });
-Object.defineProperty(container, 'clientWidth', { value: 640, configurable: true });
+container.getBoundingClientRect = () => ({ width: CONTAINER_W, height: 360, left: 0, top: 0, right: CONTAINER_W, bottom: 360 });
+Object.defineProperty(container, 'clientWidth', { value: CONTAINER_W, configurable: true });
 
 const bundle = req(outfile);
 const drawChart = bundle[exportName];
@@ -85,6 +88,32 @@ const FLAT_NOGROUP = [
 	{ label: 'Alpha', value: 30 }, { label: 'Beta', value: 22 },
 	{ label: 'Gamma', value: 15 }, { label: 'Delta', value: 9 }, { label: 'Epsilon', value: 4 }
 ];
+// Many groups → forces the horizontal legend to wrap across several rows.
+const MANY_GROUPS = Array.from({ length: 20 }, (_, i) => ({
+	label: `Item ${i + 1}`, value: (i % 7) + 1, group: `Category-${String.fromCharCode(65 + i)}`
+}));
+
+const LEGEND_FONT = 12;
+const estLegendItemW = (name) => 16 + String(name).length * (LEGEND_FONT * 0.62) + 16;
+// Assert every legend item's horizontal extent stays inside the container and that
+// the items actually wrapped onto more than one row.
+function assertLegendContained(container, groups) {
+	const items = [...container.querySelectorAll('.tc-legend > g')];
+	if (!items.length) throw new Error('no legend items rendered');
+	const ys = new Set();
+	items.forEach((g, i) => {
+		const m = /translate\(([-\d.]+)\s*,\s*([-\d.]+)\)/.exec(g.getAttribute('transform') || '');
+		if (!m) throw new Error('legend item ' + i + ' has no translate transform');
+		const x = parseFloat(m[1]);
+		const right = x + estLegendItemW(groups[i]);
+		if (x < 0 || right > CONTAINER_W + 0.5) {
+			throw new Error('legend item ' + i + ' (' + groups[i] + ') overflows: x=' + x.toFixed(1) + ' right=' + right.toFixed(1) + ' width=' + CONTAINER_W);
+		}
+		ys.add(m[2]);
+	});
+	if (ys.size < 2) throw new Error('expected legend to wrap onto multiple rows, got ' + ys.size);
+}
+const MANY_GROUP_NAMES = [...new Set(MANY_GROUPS.map((d) => d.group))];
 const DEEP = {
 	name: 'root',
 	children: [
@@ -132,6 +161,8 @@ const SCENARIOS = [
 	['legend top', { legendPosition: 'top' }],
 	['legend right', { legendPosition: 'right' }],
 	['legend off', { showLegend: false }],
+	['legend wrap bottom (many groups)', { data: MANY_GROUPS, colorMode: 'byGroup', legendPosition: 'bottom' }, (c) => assertLegendContained(c, MANY_GROUP_NAMES)],
+	['legend wrap top (many groups)', { data: MANY_GROUPS, colorMode: 'byGroup', legendPosition: 'top' }, (c) => assertLegendContained(c, MANY_GROUP_NAMES)],
 	['tooltip off', { showTooltip: false }],
 	['drop shadow', { dropShadow: true }],
 	['hover dim others', { hoverDimOthers: true }],
@@ -142,18 +173,35 @@ const SCENARIOS = [
 	['single tile', { data: [{ label: 'Only', value: 5 }] }],
 	['all-zero values', { data: [{ label: 'a', value: 0 }, { label: 'b', value: 0 }] }],
 	['negative values clamped', { data: [{ label: 'a', value: -3, group: 'G' }, { label: 'b', value: 7, group: 'G' }] }],
-	['tiny height', { chartHeight: 80 }]
+	['tiny height', { chartHeight: 80 }],
+	['animationStagger', { animationStagger: 40 }],
+	['hoverColor set', { hoverColor: '#ff0000' }],
+	['legendInteractive', { legendInteractive: true }],
+	['colorScaleType diverging', { colorMode: 'byValue', colorScaleType: 'diverging' }],
+	['colorScaleType diverging + midpoint', { colorMode: 'byValue', colorScaleType: 'diverging', divergingMidpoint: 25 }],
+	['colorScaleType quantize', { colorMode: 'byValue', colorScaleType: 'quantize', quantizeSteps: 4 }],
+	['custom gradient', { colorMode: 'byValue', customColorStart: '#ebedf0', customColorEnd: '#216e39' }],
+	['reverseColors', { colorMode: 'byValue', reverseColors: true }],
+	['colorMin/colorMax clamp', { colorMode: 'byValue', colorMin: 10, colorMax: 40 }],
+	['color legend bottom', { colorMode: 'byValue', showColorLegend: true, colorLegendPosition: 'bottom' }],
+	['color legend right', { colorMode: 'byValue', showColorLegend: true, colorLegendPosition: 'right' }],
+	['color legend title + format', { colorMode: 'byValue', colorLegendTitle: 'Spend', colorLegendFormat: '$,.0f' }],
+	['color legend title bottom', { colorMode: 'byValue', colorLegendTitle: 'Spend', colorLegendTitlePosition: 'bottom' }],
+	['color legend title left', { colorMode: 'byValue', colorLegendPosition: 'right', colorLegendTitle: 'Spend', colorLegendTitlePosition: 'left' }],
+	['color legend off', { colorMode: 'byValue', showColorLegend: false }],
+	['color legend flat data', { data: FLAT_NOGROUP, colorMode: 'byValue', colorLegendTitle: 'V' }]
 ];
 
 
 let pass = 0;
 let fail = 0;
-for (const [name, override] of SCENARIOS) {
+for (const [name, override, validate] of SCENARIOS) {
   container.innerHTML = '';
   try {
     drawChart(container, Object.assign({}, base, override), () => {});
     const svg = container.querySelector('svg');
     if (!svg) throw new Error('no <svg> produced');
+    if (typeof validate === 'function') validate(container);
     pass += 1;
     console.log('  ok    ' + name);
   } catch (e) {

@@ -1,10 +1,15 @@
-import { createCustomElement, actionTypes } from '@servicenow/ui-core';
-import snabbdom from '@servicenow/ui-renderer-snabbdom';
-import styles from './styles.scss';
-import { drawChart } from './chart';
-import { SAMPLE_HIERARCHY } from './sampleData';
+import { createCustomElement, actionTypes } from "@servicenow/ui-core";
+import snabbdom from "@servicenow/ui-renderer-snabbdom";
+import styles from "./styles.scss";
+import { drawChart } from "./chart";
+import { SAMPLE_HIERARCHY } from "./sampleData";
 
-const { COMPONENT_RENDERED, COMPONENT_DOM_READY, COMPONENT_PROPERTY_CHANGED, COMPONENT_DISCONNECTED } = actionTypes;
+const {
+	COMPONENT_RENDERED,
+	COMPONENT_DOM_READY,
+	COMPONENT_PROPERTY_CHANGED,
+	COMPONENT_DISCONNECTED,
+} = actionTypes;
 
 /**
  * The view only renders a single stable container. D3 owns everything inside it
@@ -17,19 +22,21 @@ const view = () => <div className="tc-root" />;
 /** Resolve the D3 mount node inside the (open) shadow root. */
 const getContainer = (host) =>
 	host && host.shadowRoot
-		? host.shadowRoot.querySelector('.tc-root') || host.shadowRoot.querySelector('div')
+		? host.shadowRoot.querySelector(".tc-root") ||
+			host.shadowRoot.querySelector("div")
 		: null;
 
 /** Coerce a UI Builder value into a CSS length ("50%", "12px"; bare numbers -> px). */
 const cssLen = (v, fallback) => {
-	if (v === undefined || v === null || v === '') return fallback;
+	if (v === undefined || v === null || v === "") return fallback;
 	return /^\d+(\.\d+)?$/.test(String(v)) ? `${v}px` : String(v);
 };
 
 /** True when the `data` prop actually carries something renderable. */
 const hasData = (d) => {
 	if (Array.isArray(d)) return d.length > 0;
-	if (d && typeof d === 'object') return Array.isArray(d.children) ? d.children.length > 0 : false;
+	if (d && typeof d === "object")
+		return Array.isArray(d.children) ? d.children.length > 0 : false;
 	return false;
 };
 
@@ -38,17 +45,18 @@ const render = ({ host, properties, dispatch }) => {
 	const container = getContainer(host);
 	if (!container) return;
 	// Configurable outer footprint so the widget need not span the full page width.
-	host.style.display = 'block';
-	host.style.boxSizing = 'border-box';
-	host.style.width = cssLen(properties.componentWidth, '100%');
-	host.style.maxWidth = '100%';
-	host.style.padding = cssLen(properties.componentPadding, '0');
+	host.style.display = "block";
+	host.style.boxSizing = "border-box";
+	host.style.width = cssLen(properties.componentWidth, "100%");
+	host.style.maxWidth = "100%";
+	host.style.padding = cssLen(properties.componentPadding, "0");
 	// optional widget border (Header & border section)
 	const borderW = parseFloat(properties.borderWidth) || 0;
-	host.style.border = properties.borderColor && borderW > 0
-		? `${borderW}px solid ${properties.borderColor}`
-		: 'none';
-	host.style.borderRadius = cssLen(properties.borderRadius, '0');
+	host.style.border =
+		properties.borderColor && borderW > 0
+			? `${borderW}px solid ${properties.borderColor}`
+			: "none";
+	host.style.borderRadius = cssLen(properties.borderRadius, "0");
 	const data = hasData(properties.data) ? properties.data : SAMPLE_HIERARCHY;
 	const effectiveProps = { ...properties, data };
 	// stash latest inputs so the ResizeObserver can redraw on container resize
@@ -58,71 +66,104 @@ const render = ({ host, properties, dispatch }) => {
 		// Record the width we just drew at so the ResizeObserver can distinguish a real
 		// resize from its own initial/no-op callback — that callback would otherwise
 		// repaint with animation off and snap the fade-in straight to its end state.
-		host._tcWidth = container.getBoundingClientRect().width || container.clientWidth || 0;
+		host._tcWidth =
+			container.getBoundingClientRect().width || container.clientWidth || 0;
 	} catch (e) {
 		// Safety net: surface a render failure instead of failing silently.
 		container.textContent = `Chart error: ${e && e.message ? e.message : String(e)}`;
 		// eslint-disable-next-line no-console
-		if (typeof console !== 'undefined') console.error('[treemap-chart] render failed', e);
+		if (typeof console !== "undefined")
+			console.error("[treemap-chart] render failed", e);
 	}
 };
 
-createCustomElement('x-1295779-treemap-chart-uic', {
+createCustomElement("x-2114311-treemap-chart-uic", {
 	renderer: { type: snabbdom },
 	view,
 	styles,
 	properties: {
 		// Keep in sync with now-ui.json. JSON-typed defaults (data, palette) live HERE.
 		data: { default: SAMPLE_HIERARCHY },
-		chartTitle: { default: 'Spend by Category' },
+		chartTitle: { default: "Spend by Category" },
 		titleFontSize: { default: 18 },
-		titleColor: { default: '#374151' },
-		componentWidth: { default: '50%' },
-		componentPadding: { default: '12px' },
-		backgroundColor: { default: 'transparent' },
-		borderColor: { default: '' },
+		titleColor: { default: "#374151" },
+		componentWidth: { default: "50%" },
+		componentPadding: { default: "12px" },
+		backgroundColor: { default: "transparent" },
+		borderColor: { default: "" },
 		borderWidth: { default: 0 },
 		borderRadius: { default: 0 },
 		chartHeight: { default: 360 },
 		animate: { default: true },
 		animationDuration: { default: 800 },
-		animationEasing: { default: 'cubicOut' },
-		fontFamily: { default: '' },
+		animationEasing: { default: "cubicOut" },
+		animationStagger: { default: 0 },
+		fontFamily: { default: "" },
 		dropShadow: { default: false },
-		shadowColor: { default: 'rgba(0,0,0,0.25)' },
+		shadowColor: { default: "rgba(0,0,0,0.25)" },
 		shadowBlur: { default: 4 },
 		hoverHighlight: { default: true },
 		hoverDimOthers: { default: false },
-		tileMethod: { default: 'squarify' },
+		hoverColor: { default: "" },
+		tileMethod: { default: "squarify" },
 		tilePadding: { default: 2 },
 		tilePaddingTop: { default: 18 },
 		tileCornerRadius: { default: 2 },
-		tileStroke: { default: '#ffffff' },
+		tileStroke: { default: "#ffffff" },
 		tileStrokeWidth: { default: 1 },
-		sortTiles: { default: 'value-desc' },
+		sortTiles: { default: "value-desc" },
 		maxDepth: { default: 0 },
-		colorMode: { default: 'byGroup' },
-		colorScheme: { default: 'custom' },
-		colorPalette: { default: ['#2E93fA', '#66DA26', '#546E7A', '#E91E63', '#FF9800', '#9C27B0', '#00B8D9', '#FFC107'] },
-		valueColorScheme: { default: 'blues' },
+		colorMode: { default: "byGroup" },
+		colorScheme: { default: "custom" },
+		colorPalette: {
+			default: [
+				"#2E93fA",
+				"#66DA26",
+				"#546E7A",
+				"#E91E63",
+				"#FF9800",
+				"#9C27B0",
+				"#00B8D9",
+				"#FFC107",
+			],
+		},
+		valueColorScheme: { default: "blues" },
 		useSeriesColors: { default: true },
+		colorScaleType: { default: "sequential" },
+		customColorStart: { default: "" },
+		customColorEnd: { default: "" },
+		reverseColors: { default: false },
+		colorMin: { default: null },
+		colorMax: { default: null },
+		divergingMidpoint: { default: null },
+		quantizeSteps: { default: 5 },
+		colorLegendTitle: { default: "" },
+		colorLegendFormat: { default: "" },
 		showGroupHeaders: { default: true },
 		groupHeaderFontSize: { default: 12 },
-		groupHeaderColor: { default: '#374151' },
-		labelMode: { default: 'name+value' },
-		labelFormat: { default: '' },
+		groupHeaderColor: { default: "#374151" },
+		labelMode: { default: "name+value" },
+		labelFormat: { default: "" },
 		labelFontSize: { default: 12 },
-		labelColor: { default: '' },
+		labelColor: { default: "" },
 		labelMinTileSize: { default: 34 },
 		showLegend: { default: true },
-		legendPosition: { default: 'bottom' },
+		legendPosition: { default: "bottom" },
 		legendFontSize: { default: 12 },
+		legendInteractive: { default: false },
+		showColorLegend: { default: true },
+		colorLegendPosition: { default: "bottom" },
+		colorLegendTitlePosition: { default: "top" },
+		colorLegendMargin: { default: 8 },
 		showTooltip: { default: true },
-		tooltipTemplate: { default: '<strong>{name}</strong><br/>{swatch}{formattedValue} ({percent})' },
+		tooltipTemplate: {
+			default:
+				"<strong>{name}</strong><br/>{swatch}{formattedValue} ({percent})",
+		},
 		tooltipFollowCursor: { default: true },
-		tooltipBackground: { default: 'rgba(17,24,39,0.92)' },
-		tooltipTextColor: { default: '#ffffff' },
-		tooltipFontSize: { default: 12 }
+		tooltipBackground: { default: "rgba(17,24,39,0.92)" },
+		tooltipTextColor: { default: "#ffffff" },
+		tooltipFontSize: { default: 12 },
 	},
 	actionHandlers: {
 		// Fires after each (re)render — covers initial paint.
@@ -135,11 +176,14 @@ createCustomElement('x-1295779-treemap-chart-uic', {
 		[COMPONENT_DOM_READY]: (coeffects) => {
 			const { host } = coeffects;
 			render(coeffects);
-			if (typeof ResizeObserver !== 'undefined' && !host._tcResizeObserver) {
+			if (typeof ResizeObserver !== "undefined" && !host._tcResizeObserver) {
 				const ro = new ResizeObserver(() => {
 					const last = host._tcLast;
 					if (!last || !last.container) return;
-					const w = last.container.getBoundingClientRect().width || last.container.clientWidth || 0;
+					const w =
+						last.container.getBoundingClientRect().width ||
+						last.container.clientWidth ||
+						0;
 					const prevW = host._tcWidth || 0;
 					// Only redraw on a genuine width change. observe() fires an initial
 					// no-op callback; ignoring it (and height-only changes) keeps the
@@ -147,7 +191,11 @@ createCustomElement('x-1295779-treemap-chart-uic', {
 					if (Math.abs(w - prevW) < 1) return;
 					const wasUnsized = prevW < 1; // first real width after a 0-width initial measure
 					host._tcWidth = w;
-					drawChart(last.container, { ...last.props, animate: wasUnsized ? last.props.animate : false }, last.dispatch);
+					drawChart(
+						last.container,
+						{ ...last.props, animate: wasUnsized ? last.props.animate : false },
+						last.dispatch,
+					);
 				});
 				const target = getContainer(host);
 				if (target) {
@@ -161,6 +209,6 @@ createCustomElement('x-1295779-treemap-chart-uic', {
 				host._tcResizeObserver.disconnect();
 				host._tcResizeObserver = null;
 			}
-		}
-	}
+		},
+	},
 });

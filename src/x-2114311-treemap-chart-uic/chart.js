@@ -28,7 +28,9 @@ import {
 	hierarchy, treemap,
 	treemapSquarify, treemapBinary, treemapSliceDice, treemapResquarify
 } from 'd3-hierarchy';
-import { scaleSequential, scaleOrdinal } from 'd3-scale';
+import { scaleSequential, scaleOrdinal, scaleDiverging, scaleQuantize, scaleLinear } from 'd3-scale';
+import { axisBottom, axisRight } from 'd3-axis';
+import { interpolateHcl } from 'd3-interpolate';
 import {
 	schemeCategory10, schemeTableau10, schemeSet2, schemeSet3,
 	schemePaired, schemeDark2, schemePastel1, schemeAccent,
@@ -187,7 +189,7 @@ const autoTextColor = (fill) => (luminance(fill) > 0.5 ? '#1f2937' : '#ffffff');
 
 export function drawChart(container, props, dispatch) {
 	// ----- normalize props (values may arrive as strings from the panel) -----
-	const tree = normalizeData(props.data);
+	const rawTree = normalizeData(props.data);
 
 	const backgroundColor = props.backgroundColor || 'transparent';
 	const chartTitle = props.chartTitle || '';
@@ -214,6 +216,13 @@ export function drawChart(container, props, dispatch) {
 	const categoricalRange = (colorScheme !== 'custom' && COLOR_SCHEMES[colorScheme]) ? COLOR_SCHEMES[colorScheme] : palette;
 	const useNodeColors = props.useSeriesColors !== false;
 
+	const colorScaleType = ['sequential', 'diverging', 'quantize'].includes(props.colorScaleType) ? props.colorScaleType : 'sequential';
+	const reverseColors = props.reverseColors === true;
+	const quantizeSteps = Math.max(2, Math.round(num(props.quantizeSteps, 5)));
+	const customColorStart = color(props.customColorStart) ? props.customColorStart : '';
+	const customColorEnd = color(props.customColorEnd) ? props.customColorEnd : '';
+	const useCustomGradient = !isBlank(customColorStart) && !isBlank(customColorEnd);
+
 	const showGroupHeaders = props.showGroupHeaders !== false;
 	const groupHeaderFontSize = num(props.groupHeaderFontSize, 12);
 	const groupHeaderColor = props.groupHeaderColor || '#374151';
@@ -226,14 +235,25 @@ export function drawChart(container, props, dispatch) {
 	const showLegend = props.showLegend !== false;
 	const legendPosition = ['top', 'right', 'bottom'].includes(props.legendPosition) ? props.legendPosition : 'bottom';
 	const legendFontSize = num(props.legendFontSize, 12);
+	const legendInteractive = props.legendInteractive === true;
+
+	const showColorLegend = props.showColorLegend !== false;
+	const colorLegendPosition = props.colorLegendPosition === 'right' ? 'right' : 'bottom';
+	const colorLegendTitle = props.colorLegendTitle || '';
+	const colorLegendTitlePosition = ['top', 'bottom', 'left', 'right'].includes(props.colorLegendTitlePosition)
+		? props.colorLegendTitlePosition
+		: 'top';
+	const colorLegendMargin = Math.max(0, num(props.colorLegendMargin, 8));
 
 	const dropShadow = props.dropShadow === true;
 	const shadowBlur = Math.max(0, num(props.shadowBlur, 4));
 	const hoverHighlight = props.hoverHighlight !== false;
+	const hoverColor = props.hoverColor || '';
 	const hoverDimOthers = props.hoverDimOthers === true;
 
 	const animationDuration = Math.max(0, num(props.animationDuration, 800));
 	const animate = props.animate !== false && animationDuration > 0;
+	const animationStagger = Math.max(0, num(props.animationStagger, 0));
 	const easeFn = EASINGS[props.animationEasing] || easeCubicOut;
 
 	const showTooltip = props.showTooltip !== false;
@@ -250,6 +270,7 @@ export function drawChart(container, props, dispatch) {
 		try { return format(spec); } catch (e) { return (n) => `${n}`; }
 	};
 	const fmt = makeFmt(props.labelFormat);
+	const colorLegendFmt = makeFmt(props.colorLegendFormat);
 
 	// ----- clear previous render -----
 	const root = select(container);
@@ -292,6 +313,25 @@ export function drawChart(container, props, dispatch) {
 			.attr('flood-color', props.shadowColor || 'rgba(0,0,0,0.25)');
 	}
 
+	// ----- interactive legend: hide top-level categories -----
+	// The hidden set lives on the stable container node so it survives the redraw a
+	// legend click triggers. Hiding a top-level group drops its subtree before the
+	// hierarchy is summed, so the treemap rescales to the remaining categories.
+	const nestedTree = rawTree && Array.isArray(rawTree.children) && rawTree.children.length
+		&& rawTree.children.some((c) => Array.isArray(c.children) && c.children.length);
+	const allTopGroups = (rawTree && Array.isArray(rawTree.children))
+		? rawTree.children.map((c) => (c && c.name !== undefined ? String(c.name) : ''))
+		: [];
+	const hidden = legendInteractive
+		? (container.__tcHidden instanceof Set ? container.__tcHidden : (container.__tcHidden = new Set()))
+		: new Set();
+	let tree = rawTree;
+	if (legendInteractive && rawTree && Array.isArray(rawTree.children) && hidden.size) {
+		tree = Object.assign({}, rawTree, {
+			children: rawTree.children.filter((c) => !hidden.has(c && c.name !== undefined ? String(c.name) : ''))
+		});
+	}
+
 	// ----- build the d3 hierarchy -----
 	let rootNode = null;
 	if (tree) {
@@ -320,7 +360,36 @@ export function drawChart(container, props, dispatch) {
 
 	// top-level groups drive grouping/legend/byGroup coloring
 	const topGroups = (rootNode.children || []).map((c) => (c.data && c.data.name !== undefined ? String(c.data.name) : ''));
+	// legend keys off the full list (incl. hidden) when interactive so hidden categories
+	// stay in the legend (dimmed) and can be toggled back on.
+	const legendGroups = legendInteractive ? allTopGroups : topGroups;
 	const maxTreeDepth = (() => { let m = 0; rootNode.each((n) => { if (n.depth > m) m = n.depth; }); return m; })();
+
+	// ----- render leaves (independent of layout geometry) -----
+	// A "render leaf" is a node whose depth === maxDepth (with children below merged
+	// into it) OR an actual leaf shallower than maxDepth. Computed before the layout so
+	// the value domain can be reserved for in the margins; layout() later mutates these
+	// same node objects in place with x0/y0/x1/y1.
+	const isRenderLeaf = (n) => {
+		if (!n.children || !n.children.length) return true;
+		if (maxDepth > 0 && n.depth >= maxDepth) return true;
+		return false;
+	};
+	const renderLeaves = [];
+	rootNode.each((n) => { if (n.depth > 0 && isRenderLeaf(n)) renderLeaves.push(n); });
+
+	// ----- value-color domain (drives By value coloring + the color legend) -----
+	let valueExtent = [Infinity, -Infinity];
+	renderLeaves.forEach((n) => { const v = n.value || 0; if (v < valueExtent[0]) valueExtent[0] = v; if (v > valueExtent[1]) valueExtent[1] = v; });
+	if (!Number.isFinite(valueExtent[0])) valueExtent = [0, 1];
+	if (valueExtent[0] === valueExtent[1]) valueExtent = [valueExtent[0], valueExtent[0] + 1];
+	const dataMin = valueExtent[0];
+	const dataMax = valueExtent[1];
+	const domMin = isBlank(props.colorMin) ? dataMin : num(props.colorMin, dataMin);
+	let domMax = isBlank(props.colorMax) ? dataMax : num(props.colorMax, dataMax);
+	if (domMax === domMin) domMax = domMin + 1;
+	let valueMean = 0;
+	if (renderLeaves.length) { renderLeaves.forEach((n) => { valueMean += (n.value || 0); }); valueMean /= renderLeaves.length; }
 
 	// ----- layout margins -----
 	const margin = { top: 6, right: 6, bottom: 6, left: 6 };
@@ -328,11 +397,38 @@ export function drawChart(container, props, dispatch) {
 
 	const legendRowH = legendFontSize + 10;
 	const legendItemW = (name) => 16 + String(name).length * (legendFontSize * 0.62) + 16;
-	const showGroupLegend = showLegend && topGroups.length > 0;
+	const showGroupLegend = showLegend && legendGroups.length > 0;
+	// Horizontal room the top/bottom legend can occupy before wrapping to a new row.
+	// Captured here so the draw step (below) packs items with the exact same width.
+	const legendLayoutW = Math.max(10, width - margin.left - margin.right - 16);
+	// Greedily pack the horizontal legend to count the rows it needs; the reserved
+	// margin below then grows the plot's edge so every wrapped row stays in-container.
+	let legendRows = 1;
+	if (showGroupLegend && legendPosition !== 'right') {
+		let rowW = 0;
+		legendGroups.forEach((g) => {
+			const w = legendItemW(g);
+			if (rowW > 0 && rowW + w > legendLayoutW) { legendRows += 1; rowW = w; }
+			else rowW += w;
+		});
+	}
 	if (showGroupLegend) {
-		if (legendPosition === 'top') margin.top += legendRowH + 6;
-		else if (legendPosition === 'bottom') margin.bottom += legendRowH + 6;
-		else margin.right += Math.min(200, Math.max(...topGroups.map(legendItemW)) + 8);
+		if (legendPosition === 'top') margin.top += legendRows * legendRowH + 6;
+		else if (legendPosition === 'bottom') margin.bottom += legendRows * legendRowH + 6;
+		else margin.right += Math.min(200, Math.max(...legendGroups.map(legendItemW)) + 8);
+	}
+
+	// value color legend (only meaningful when By value coloring is active)
+	const showValueLegend = showColorLegend && colorMode === 'byValue';
+	const legendThick = 14;
+	const legendTickRoom = legendFontSize + 8;
+	const legendTitleRoom = colorLegendTitle ? legendFontSize + 6 : 0;
+	const legendMaxChars = Math.max(1, ...[domMin, (domMin + domMax) / 2, domMax]
+		.map((v) => String(isBlank(props.colorLegendFormat) ? `${v}` : colorLegendFmt(v)).length));
+	const legendTickRoomRight = 4 + Math.ceil(legendMaxChars * legendFontSize * 0.62) + 4;
+	if (showValueLegend) {
+		if (colorLegendPosition === 'right') margin.right += colorLegendMargin + legendThick + legendTickRoomRight + legendTitleRoom;
+		else margin.bottom += colorLegendMargin + legendThick + legendTickRoom + legendTitleRoom;
 	}
 
 	const innerW = Math.max(10, width - margin.left - margin.right);
@@ -348,17 +444,6 @@ export function drawChart(container, props, dispatch) {
 		.round(true);
 	layout(rootNode);
 
-	// ----- depth flattening (maxDepth): keep tiles at/above maxDepth -----
-	// A "render leaf" is a node whose depth === maxDepth (with children below
-	// merged into it) OR an actual leaf shallower than maxDepth.
-	const isRenderLeaf = (n) => {
-		if (!n.children || !n.children.length) return true;
-		if (maxDepth > 0 && n.depth >= maxDepth) return true;
-		return false;
-	};
-	const renderLeaves = [];
-	rootNode.each((n) => { if (n.depth > 0 && isRenderLeaf(n)) renderLeaves.push(n); });
-
 	// header nodes: internal nodes that still have rendered children below them
 	const headerNodes = [];
 	if (headerSpace > 0) {
@@ -370,16 +455,33 @@ export function drawChart(container, props, dispatch) {
 	const total = rootNode.value || 0;
 
 	// ----- color resolution -----
-	const groupColor = scaleOrdinal().domain(topGroups).range(categoricalRange);
+	// domain on legendGroups (the full list when interactive) so a group's color stays
+	// stable as siblings are toggled on/off.
+	const groupColor = scaleOrdinal().domain(legendGroups).range(categoricalRange);
 	const depthColor = scaleOrdinal()
 		.domain(Array.from({ length: maxTreeDepth + 1 }, (_, i) => i))
 		.range(categoricalRange);
 
-	let valueExtent = [Infinity, -Infinity];
-	renderLeaves.forEach((n) => { const v = n.value || 0; if (v < valueExtent[0]) valueExtent[0] = v; if (v > valueExtent[1]) valueExtent[1] = v; });
-	if (!Number.isFinite(valueExtent[0])) valueExtent = [0, 1];
-	if (valueExtent[0] === valueExtent[1]) valueExtent = [valueExtent[0], valueExtent[0] + 1];
-	const valueColor = scaleSequential(SEQ_SCHEMES[valueColorScheme]).domain(valueExtent);
+	// custom gradient (HCL) when both endpoints are set; else the sequential scheme.
+	const baseInterp = useCustomGradient
+		? interpolateHcl(customColorStart, customColorEnd)
+		: SEQ_SCHEMES[valueColorScheme];
+	const interp = reverseColors ? (t) => baseInterp(1 - t) : baseInterp;
+	let valueScale;
+	if (colorScaleType === 'diverging') {
+		const autoMid = (valueMean >= domMin && valueMean <= domMax) ? valueMean : (domMin + domMax) / 2;
+		const mid = isBlank(props.divergingMidpoint) ? autoMid : num(props.divergingMidpoint, autoMid);
+		valueScale = scaleDiverging([domMin, mid, domMax], interp).clamp(true);
+	} else if (colorScaleType === 'quantize') {
+		const range = [];
+		for (let i = 0; i < quantizeSteps; i += 1) {
+			range.push(interp(quantizeSteps === 1 ? 0.5 : i / (quantizeSteps - 1)));
+		}
+		valueScale = scaleQuantize().domain([domMin, domMax]).range(range);
+	} else {
+		valueScale = scaleSequential([domMin, domMax], interp).clamp(true);
+	}
+	const valueColor = (v) => valueScale(v);
 
 	const topGroupNameOf = (n) => {
 		let cur = n;
@@ -556,7 +658,11 @@ export function drawChart(container, props, dispatch) {
 	}
 
 	// ----- interaction -----
-	const hoverFill = (base) => { const c = color(base); return c ? c.brighter(0.45).toString() : base; };
+	const hoverFill = (base) => {
+		if (hoverColor) return hoverColor;
+		const c = color(base);
+		return c ? c.brighter(0.45).toString() : base;
+	};
 	rects
 		.on('mouseenter', function (event, d) {
 			if (hoverHighlight) {
@@ -602,6 +708,8 @@ export function drawChart(container, props, dispatch) {
 	if (animate && typeof requestAnimationFrame === 'function') {
 		const now = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : new Date().getTime());
 		const t0 = now();
+		const delayOf = (i) => animationStagger * i;
+		const maxDelay = animationStagger * Math.max(0, renderLeaves.length - 1);
 		// initial state
 		tileGroups.attr('transform', (d) => {
 			const cx = d.x0 + wOf(d) / 2;
@@ -610,8 +718,8 @@ export function drawChart(container, props, dispatch) {
 		}).style('opacity', 0);
 		const tick = () => {
 			const elapsed = now() - t0;
-			const k = easeFn(Math.max(0, Math.min(1, elapsed / animationDuration)));
-			tileGroups.each(function (d) {
+			tileGroups.each(function (d, i) {
+				const k = easeFn(Math.max(0, Math.min(1, (elapsed - delayOf(i)) / animationDuration)));
 				const cx = d.x0 + wOf(d) / 2;
 				const cy = d.y0 + hOf(d) / 2;
 				const s = 0.01 + 0.99 * k;
@@ -619,7 +727,7 @@ export function drawChart(container, props, dispatch) {
 					.attr('transform', `translate(${d.x0},${d.y0}) translate(${cx - d.x0},${cy - d.y0}) scale(${s}) translate(${-(cx - d.x0)},${-(cy - d.y0)})`)
 					.style('opacity', k);
 			});
-			if (elapsed < animationDuration) requestAnimationFrame(tick);
+			if (elapsed < animationDuration + maxDelay) requestAnimationFrame(tick);
 			else tileGroups.attr('transform', (d) => `translate(${d.x0},${d.y0})`).style('opacity', 1);
 		};
 		requestAnimationFrame(tick);
@@ -636,27 +744,140 @@ export function drawChart(container, props, dispatch) {
 
 	// ----- legend (top-level groups) -----
 	if (showGroupLegend) {
+		const isHidden = (g) => hidden.has(g);
 		const legend = svg.append('g').attr('class', 'tc-legend');
-		const items = legend.selectAll('g').data(topGroups).join('g');
+		const items = legend.selectAll('g').data(legendGroups).join('g')
+			.style('cursor', legendInteractive ? 'pointer' : 'default')
+			.style('opacity', (g) => (isHidden(g) ? 0.4 : 1));
 		items.append('rect').attr('x', 0).attr('y', -legendFontSize + 2)
 			.attr('width', 12).attr('height', 12).attr('rx', 2)
 			.attr('fill', (g) => groupColor(g));
 		items.append('text').attr('x', 18).attr('y', 0).attr('dominant-baseline', 'middle')
 			.attr('fill', '#374151').style('font-size', `${legendFontSize}px`).style('font-family', fontFamily)
+			.style('text-decoration', (g) => (isHidden(g) ? 'line-through' : 'none'))
 			.text((g) => g);
 
+		if (legendInteractive) {
+			items.on('click', function (event, g) {
+				event.stopPropagation();
+				if (hidden.has(g)) {
+					hidden.delete(g);
+				} else if (allTopGroups.length - hidden.size > 1) {
+					hidden.add(g);
+				} else {
+					return;
+				}
+				drawChart(container, Object.assign({}, props, { animate: false }), dispatch);
+			});
+		}
+
 		if (legendPosition === 'right') {
-			const totalH = topGroups.length * legendRowH;
+			const totalH = legendGroups.length * legendRowH;
 			let yy = margin.top + Math.max(0, (innerH - totalH) / 2);
 			items.attr('transform', () => { const tr = `translate(${width - margin.right + 12},${yy + legendFontSize})`; yy += legendRowH; return tr; });
 		} else {
-			const widths = topGroups.map(legendItemW);
-			const totalW = widths.reduce((a, b) => a + b, 0);
-			let xx = Math.max(8, margin.left + innerW / 2 - totalW / 2);
-			const yPos = legendPosition === 'top'
+			const widths = legendGroups.map(legendItemW);
+			// Pack items into rows using the same wrap width the margin reservation used.
+			const rows = [];
+			let cur = [];
+			let curW = 0;
+			legendGroups.forEach((g, i) => {
+				const w = widths[i];
+				if (cur.length > 0 && curW + w > legendLayoutW) { rows.push({ items: cur, width: curW }); cur = []; curW = 0; }
+				cur.push(i); curW += w;
+			});
+			if (cur.length) rows.push({ items: cur, width: curW });
+			const baseY = legendPosition === 'top'
 				? (chartTitle ? titleFontSize + 16 : 0) + legendFontSize + 2
 				: height - margin.bottom + legendFontSize + 6;
-			items.attr('transform', (g, i) => { const tr = `translate(${xx},${yPos})`; xx += widths[i]; return tr; });
+			// Each row is centered on its own width; rows stack downward by legendRowH.
+			const pos = [];
+			rows.forEach((row, ri) => {
+				let xx = Math.max(8, margin.left + innerW / 2 - row.width / 2);
+				const yy = baseY + ri * legendRowH;
+				row.items.forEach((idx) => { pos[idx] = { x: xx, y: yy }; xx += widths[idx]; });
+			});
+			items.attr('transform', (g, i) => `translate(${pos[i].x},${pos[i].y})`);
+		}
+	}
+
+	// ----- value color legend (gradient bar) when By value coloring is active -----
+	if (showValueLegend) {
+		const legend = svg.append('g').attr('class', 'tc-color-legend');
+		const defs = svg.append('defs');
+		const gradId = 'tc-legend-grad';
+		const STOPS = 24;
+		const valueAt = (t) => domMin + t * (domMax - domMin);
+		const legendAxisColor = '#6b7280';
+		const legendTickFmt = isBlank(props.colorLegendFormat) ? null : colorLegendFmt;
+
+		if (colorLegendPosition === 'right') {
+			const titleLeft = colorLegendTitle && colorLegendTitlePosition === 'left';
+			const gridRight = margin.left + innerW;
+			const barH = Math.max(40, Math.min(innerH * 0.8, 240));
+			const barX = gridRight + colorLegendMargin + (titleLeft ? legendTitleRoom : 0);
+			const barY = margin.top + (innerH - barH) / 2;
+			const grad = defs.append('linearGradient').attr('id', gradId)
+				.attr('x1', 0).attr('y1', 1).attr('x2', 0).attr('y2', 0);
+			for (let i = 0; i <= STOPS; i += 1) {
+				const t = i / STOPS;
+				grad.append('stop').attr('offset', `${t * 100}%`).attr('stop-color', valueColor(valueAt(t)));
+			}
+			legend.append('rect')
+				.attr('x', barX).attr('y', barY).attr('width', legendThick).attr('height', barH)
+				.attr('fill', `url(#${gradId})`).attr('stroke', legendAxisColor).attr('stroke-width', 0.5);
+			const ls = scaleLinear().domain([domMin, domMax]).range([barY + barH, barY]);
+			const axis = legend.append('g').attr('class', 'tc-color-legend-axis')
+				.attr('transform', `translate(${barX + legendThick},0)`)
+				.call(axisRight(ls).ticks(5).tickSize(4).tickFormat(legendTickFmt));
+			axis.selectAll('line').attr('stroke', legendAxisColor);
+			axis.selectAll('text').attr('fill', legendAxisColor).style('font-size', `${legendFontSize}px`).style('font-family', fontFamily);
+			axis.select('.domain').remove();
+			if (colorLegendTitle) {
+				const axisNode = axis.node();
+				const axisW = (axisNode && axisNode.getBBox && axisNode.getBBox().width) || legendTickRoomRight;
+				const titleX = titleLeft
+					? gridRight + colorLegendMargin
+					: barX + legendThick + axisW + legendFontSize;
+				legend.append('text')
+					.attr('transform', `translate(${titleX},${barY + barH / 2}) rotate(-90)`)
+					.attr('text-anchor', 'middle').attr('fill', legendAxisColor)
+					.style('font-size', `${legendFontSize}px`).style('font-weight', '600')
+					.style('font-family', fontFamily).text(colorLegendTitle);
+			}
+		} else {
+			const barW = Math.max(60, innerW * 0.6);
+			const barX = margin.left + (innerW - barW) / 2;
+			const gridBottom = margin.top + innerH;
+			const groupTop = gridBottom + colorLegendMargin;
+			const titleBelow = colorLegendTitle && colorLegendTitlePosition === 'bottom';
+			const barY = groupTop + (colorLegendTitle && !titleBelow ? legendTitleRoom : 0);
+			const grad = defs.append('linearGradient').attr('id', gradId)
+				.attr('x1', 0).attr('y1', 0).attr('x2', 1).attr('y2', 0);
+			for (let i = 0; i <= STOPS; i += 1) {
+				const t = i / STOPS;
+				grad.append('stop').attr('offset', `${t * 100}%`).attr('stop-color', valueColor(valueAt(t)));
+			}
+			legend.append('rect')
+				.attr('x', barX).attr('y', barY).attr('width', barW).attr('height', legendThick)
+				.attr('fill', `url(#${gradId})`).attr('stroke', legendAxisColor).attr('stroke-width', 0.5);
+			const ls = scaleLinear().domain([domMin, domMax]).range([barX, barX + barW]);
+			const axis = legend.append('g').attr('class', 'tc-color-legend-axis')
+				.attr('transform', `translate(0,${barY + legendThick})`)
+				.call(axisBottom(ls).ticks(5).tickSize(4).tickFormat(legendTickFmt));
+			axis.selectAll('line').attr('stroke', legendAxisColor);
+			axis.selectAll('text').attr('fill', legendAxisColor).style('font-size', `${legendFontSize}px`).style('font-family', fontFamily);
+			axis.select('.domain').remove();
+			if (colorLegendTitle) {
+				const titleY = titleBelow
+					? barY + legendThick + legendTickRoom + legendFontSize
+					: groupTop + legendFontSize;
+				legend.append('text')
+					.attr('x', barX + barW / 2).attr('y', titleY)
+					.attr('text-anchor', 'middle').attr('fill', legendAxisColor)
+					.style('font-size', `${legendFontSize}px`).style('font-weight', '600')
+					.style('font-family', fontFamily).text(colorLegendTitle);
+			}
 		}
 	}
 }

@@ -1,12 +1,9 @@
 {
   "components": {
-    "x-1295779-treemap-chart-uic": {
+    "x-2114311-treemap-chart-uic": {
       "innerComponents": [],
       "uiBuilder": {
-        "associatedTypes": [
-          "global.core",
-          "global.landing-page"
-        ],
+        "associatedTypes": ["global.core", "global.landing-page"],
         "label": "D3 Treemap",
         "tileIcon": "./tile-icon/generic-tile-icon.svg",
         "description": "A configurable treemap rendered with D3.js. Nested rectangles whose AREA encodes value, for hierarchical or flat (optionally grouped) data. Configurable tiling, color-by-group/value/depth, nested-group headers, auto-contrast labels, and click/hover events.",
@@ -124,6 +121,13 @@
           }
         },
         {
+          "name": "animationStagger",
+          "label": "Animation · Animation stagger (ms)",
+          "description": "Delay between categories for a cascade grow-in (0 = all bars animate together).",
+          "fieldType": "number",
+          "defaultValue": 0
+        },
+        {
           "name": "fontFamily",
           "label": "Display · Base font family",
           "description": "CSS font-family for chart text that doesn't have its own family set. Blank = inherit from the page.",
@@ -164,6 +168,13 @@
           "description": "Fade the other tiles when hovering one, so the hovered tile stands out.",
           "fieldType": "boolean",
           "defaultValue": false
+        },
+        {
+          "name": "hoverColor",
+          "label": "Display · Hover color (when hover highlight on)",
+          "description": "Color a tile turns on hover. Blank = automatically brighten the tile's own color.",
+          "fieldType": "string",
+          "defaultValue": ""
         },
         {
           "name": "tileMethod",
@@ -317,6 +328,81 @@
           "defaultValue": true
         },
         {
+          "name": "colorScaleType",
+          "label": "Color scale · Color scale type",
+          "description": "How values map to colors when Color mode is By value: sequential (single hue ramp), diverging (two hues around a midpoint), or quantize (discrete steps).",
+          "fieldType": "choice",
+          "defaultValue": "sequential",
+          "typeMetadata": {
+            "variant": "dropdown",
+            "choices": [
+              { "label": "Sequential", "value": "sequential" },
+              { "label": "Diverging", "value": "diverging" },
+              { "label": "Quantize", "value": "quantize" }
+            ]
+          }
+        },
+        {
+          "name": "customColorStart",
+          "label": "Color scale · Custom start color",
+          "description": "Low-end color of a custom gradient for By value coloring. Leave blank to use the Sequential scheme above.",
+          "fieldType": "string",
+          "defaultValue": ""
+        },
+        {
+          "name": "customColorEnd",
+          "label": "Color scale · Custom end color",
+          "description": "High-end color of a custom gradient for By value coloring. Set both start and end to use a custom gradient instead of the Sequential scheme.",
+          "fieldType": "string",
+          "defaultValue": ""
+        },
+        {
+          "name": "reverseColors",
+          "label": "Color scale · Reverse colors",
+          "description": "Reverse the direction of the By value color scale.",
+          "fieldType": "boolean",
+          "defaultValue": false
+        },
+        {
+          "name": "colorMin",
+          "label": "Color scale · Color domain min",
+          "description": "Fix the low end of the By value color domain. Leave blank to use the data minimum.",
+          "fieldType": "number"
+        },
+        {
+          "name": "colorMax",
+          "label": "Color scale · Color domain max",
+          "description": "Fix the high end of the By value color domain. Leave blank to use the data maximum.",
+          "fieldType": "number"
+        },
+        {
+          "name": "divergingMidpoint",
+          "label": "Color scale · Diverging midpoint",
+          "description": "Midpoint value for the diverging scale. Leave blank to use the data mean.",
+          "fieldType": "number"
+        },
+        {
+          "name": "quantizeSteps",
+          "label": "Color scale · Quantize steps",
+          "description": "Number of discrete color steps when the scale type is 'quantize'.",
+          "fieldType": "number",
+          "defaultValue": 5
+        },
+        {
+          "name": "colorLegendTitle",
+          "label": "Color legend · Title",
+          "description": "Optional title shown next to the value color legend. Leave blank to hide.",
+          "fieldType": "string",
+          "defaultValue": ""
+        },
+        {
+          "name": "colorLegendFormat",
+          "label": "Color legend · Tick format",
+          "description": "D3 number format specifier for the value color legend ticks (e.g. \".0f\", \",.0f\", \"$,.0f\", \".0%\", \".2s\"). Blank = default.",
+          "fieldType": "string",
+          "defaultValue": ""
+        },
+        {
           "name": "showGroupHeaders",
           "label": "Labels · Show group headers",
           "description": "Draw the parent group names as headers in the reserved top padding of each group. Only meaningful with nested data.",
@@ -411,6 +497,57 @@
           "defaultValue": 12
         },
         {
+          "name": "legendInteractive",
+          "label": "Legend · Clickable to toggle categories",
+          "description": "Let viewers click a group legend item to hide/show that category's tiles; the treemap rescales to the remaining categories. Hidden items stay in the legend (dimmed) so they can be toggled back.",
+          "fieldType": "boolean",
+          "defaultValue": false
+        },
+        {
+          "name": "showColorLegend",
+          "label": "Legend · Show color legend",
+          "description": "Show a gradient color legend for the value-to-color scale (only shown when Color mode is By value).",
+          "fieldType": "boolean",
+          "defaultValue": true
+        },
+        {
+          "name": "colorLegendPosition",
+          "label": "Legend · Color legend position",
+          "description": "Where to place the value color legend.",
+          "fieldType": "choice",
+          "defaultValue": "bottom",
+          "typeMetadata": {
+            "variant": "dropdown",
+            "choices": [
+              { "label": "Bottom", "value": "bottom" },
+              { "label": "Right", "value": "right" }
+            ]
+          }
+        },
+        {
+          "name": "colorLegendTitlePosition",
+          "label": "Legend · Legend title position",
+          "description": "Where the optional legend title sits relative to the value color legend. Top/Bottom apply when the legend is on the bottom; Left/Right apply when it is on the right.",
+          "fieldType": "choice",
+          "defaultValue": "top",
+          "typeMetadata": {
+            "variant": "dropdown",
+            "choices": [
+              { "label": "Top", "value": "top" },
+              { "label": "Bottom", "value": "bottom" },
+              { "label": "Left", "value": "left" },
+              { "label": "Right", "value": "right" }
+            ]
+          }
+        },
+        {
+          "name": "colorLegendMargin",
+          "label": "Legend · Color legend margin (px)",
+          "description": "Gap (px) between the treemap and the value color legend. Applies below the treemap when the legend is on the bottom, and to the right of the treemap when it is on the right.",
+          "fieldType": "number",
+          "defaultValue": 8
+        },
+        {
           "name": "showTooltip",
           "label": "Tooltip · Show tooltip",
           "description": "Show a hover tooltip.",
@@ -459,7 +596,11 @@
           "label": "Chart clicked",
           "description": "Fired when the user clicks anywhere on the chart (not on a specific tile).",
           "payload": [
-            { "name": "tileCount", "label": "Number of tiles", "description": "How many leaf tiles are currently rendered." }
+            {
+              "name": "tileCount",
+              "label": "Number of tiles",
+              "description": "How many leaf tiles are currently rendered."
+            }
           ]
         },
         {
@@ -467,12 +608,36 @@
           "label": "Tile clicked",
           "description": "Fired when the user clicks an individual tile. Use to drill into details for that tile.",
           "payload": [
-            { "name": "name", "label": "Name", "description": "Name/label of the tile." },
-            { "name": "value", "label": "Value", "description": "Numeric value of the tile." },
-            { "name": "path", "label": "Path", "description": "Ancestor names from the root joined by ' / '." },
-            { "name": "group", "label": "Group", "description": "Top-level group name the tile belongs to (blank for ungrouped flat data)." },
-            { "name": "depth", "label": "Depth", "description": "Zero-based nesting depth of the tile." },
-            { "name": "color", "label": "Color", "description": "Resolved fill color of the tile." }
+            {
+              "name": "name",
+              "label": "Name",
+              "description": "Name/label of the tile."
+            },
+            {
+              "name": "value",
+              "label": "Value",
+              "description": "Numeric value of the tile."
+            },
+            {
+              "name": "path",
+              "label": "Path",
+              "description": "Ancestor names from the root joined by ' / '."
+            },
+            {
+              "name": "group",
+              "label": "Group",
+              "description": "Top-level group name the tile belongs to (blank for ungrouped flat data)."
+            },
+            {
+              "name": "depth",
+              "label": "Depth",
+              "description": "Zero-based nesting depth of the tile."
+            },
+            {
+              "name": "color",
+              "label": "Color",
+              "description": "Resolved fill color of the tile."
+            }
           ]
         },
         {
@@ -480,13 +645,25 @@
           "label": "Tile hovered",
           "description": "Fired when the user hovers a tile. Useful for syncing external tooltips or details panels.",
           "payload": [
-            { "name": "name", "label": "Name", "description": "Name/label of the tile." },
-            { "name": "value", "label": "Value", "description": "Numeric value of the tile." },
-            { "name": "group", "label": "Group", "description": "Top-level group name the tile belongs to." }
+            {
+              "name": "name",
+              "label": "Name",
+              "description": "Name/label of the tile."
+            },
+            {
+              "name": "value",
+              "label": "Value",
+              "description": "Numeric value of the tile."
+            },
+            {
+              "name": "group",
+              "label": "Group",
+              "description": "Top-level group name the tile belongs to."
+            }
           ]
         }
       ]
     }
   },
-  "scopeName": "x_1295779_tree_0"
+  "scopeName": "x_2114311_tree_0"
 }

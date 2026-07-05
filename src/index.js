@@ -1,1 +1,1 @@
-import './x-1295779-treemap-chart-uic';
+import "./x-2114311-treemap-chart-uic";

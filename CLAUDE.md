@@ -9,15 +9,15 @@ A ServiceNow **Next Experience / UI Builder** custom component that renders a co
 a sibling of the **D3 Line / Column** chart components and mirrors their architecture and
 conventions — but NOT their data contract (a treemap needs a single tree, not a `series` array).
 
-- Component tag: `x-1295779-treemap-chart-uic`  ·  Scope: `x_1295779_tree_0` (scopeName must be ≤ 18 chars)
-- Vendor prefix `x_1295779` is shared with the line/column charts (same publisher).
+- Component tag: `x-2114311-treemap-chart-uic` · Scope: `x_2114311_tree_0` (scopeName must be ≤ 18 chars)
+- Vendor prefix `x_2114311` is shared with the line/column charts (same publisher).
 - CSS class prefix: `tc` (e.g. `.tc-root`, `.tc-svg`, `.tc-tooltip`, `.tc-tile`).
 
 ## Architecture (important conventions)
 
 - **Seismic + D3 split.** The snabbdom `view` renders only a single stable `<div class="tc-root">`.
   D3 owns the SVG imperatively. `drawChart(container, props, dispatch)` in
-  `src/x-1295779-treemap-chart-uic/chart.js` fully re-renders on every property change. Never mix
+  `src/x-2114311-treemap-chart-uic/chart.js` fully re-renders on every property change. Never mix
   snabbdom virtual DOM with D3 mutation on the same nodes.
 - **Lifecycle** (`index.js`): redraw on `COMPONENT_RENDERED` and `COMPONENT_PROPERTY_CHANGED`;
   a `ResizeObserver` (wired in `COMPONENT_DOM_READY`) redraws on width changes only, and skips
@@ -37,24 +37,24 @@ conventions — but NOT their data contract (a treemap needs a single tree, not 
 
 ## Files
 
-- `src/x-1295779-treemap-chart-uic/index.js` — `createCustomElement`: property defaults + lifecycle.
-- `src/x-1295779-treemap-chart-uic/chart.js` — the D3 renderer (the bulk of the logic).
-- `src/x-1295779-treemap-chart-uic/sampleData.js` — `SAMPLE_HIERARCHY` (default) + `SAMPLE_DATA`.
-- `src/x-1295779-treemap-chart-uic/styles.scss` — host/container/tooltip styles.
+- `src/x-2114311-treemap-chart-uic/index.js` — `createCustomElement`: property defaults + lifecycle.
+- `src/x-2114311-treemap-chart-uic/chart.js` — the D3 renderer (the bulk of the logic).
+- `src/x-2114311-treemap-chart-uic/sampleData.js` — `SAMPLE_HIERARCHY` (default) + `SAMPLE_DATA`.
+- `src/x-2114311-treemap-chart-uic/styles.scss` — host/container/tooltip styles.
 - `now-ui.json` — UI Builder manifest: every property (section-prefixed labels) + the
   `CHART_CLICKED` / `TILE_CLICKED` / `TILE_HOVERED` actions. **Keep this in sync with the
   `properties` block in `index.js` and the prop reads in `chart.js`** (the three-places rule).
 - `scripts/verify_chart.mjs` — headless render harness (40+ scenarios, no instance needed).
 - `server/` — platform-side sources (Script Include `D3HierarchyData.js` + Data Transform scripts
-  + properties JSON + sanity-test background script). NOT shipped by `snc ui-component deploy`;
-  created as platform records on the instance. See `server/README.md`.
+  - properties JSON + sanity-test background script). NOT shipped by `snc ui-component deploy`;
+    created as platform records on the instance. See `server/README.md`.
 
 ## Data contract
 
 `data` is a SINGLE tree, auto-detected as either:
 
 - **Hierarchy** (object with `children`): `{ name, children: [ { name, children: [ { name, value,
-  color? } ] } ] }`. Leaves carry `value`; internal nodes are summed for area.
+color? } ] } ] }`. Leaves carry `value`; internal nodes are summed for area.
 - **Flat** (array): `[ { label, value, group?, color? } ]`. With a `group` field -> a 2-level
   tree (group -> leaf); without it -> a single level of tiles.
 
@@ -87,14 +87,16 @@ snc ui-component develop --open          # local hot-reload harness (example/ele
 snc ui-component generate-update-set --offline
 snc ui-component deploy                   # push to the connected instance
 ```
+
 Requires the `snc` CLI (`npm i -g @servicenow/cli`) + a configured profile
 (`snc configure profile set`). The CLI needs a real instance connection.
 
 ## How to verify changes without an instance
 
 ```bash
-node scripts/verify_chart.mjs --chart src/x-1295779-treemap-chart-uic/chart.js
+node scripts/verify_chart.mjs --chart src/x-2114311-treemap-chart-uic/chart.js
 ```
+
 Bundles chart.js with real d3 and runs `drawChart` in jsdom across the scenario matrix (both data
 shapes, all tiling methods/color modes, group headers, label modes, maxDepth, sort, empty/single/
 all-zero/deep/animate-off). Extend the `SCENARIOS` array for new properties. Also validate JSON
